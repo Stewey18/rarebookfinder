@@ -1,0 +1,847 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bibliophile Scout - Book Scouting Tool</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore.js"></script>
+    <style>
+        @media (max-width: 768px) {
+            .pb-safe { padding-bottom: calc(env(safe-area-inset-bottom) + 1rem); }
+        }
+        .animate-spin { animation: spin 1s linear infinite; }
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        input, textarea, select, button { user-select: text !important; }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-900">
+    <div id="root" class="min-h-screen flex flex-col"></div>
+
+    <script>
+        // ============================================
+        // BIBLIOPHILE SCOUT - VANILLA JAVASCRIPT
+        // ============================================
+
+        // Simple SVG Icons
+        const Icons = {
+            search: () => '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>',
+            bookmark: () => '<svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"></path></svg>',
+            heart: () => '<svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>',
+            bell: () => '<svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M15 17h5l-1.405-1.405A2.032 2.032 0 0018 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path></svg>',
+            settings: () => '<svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M12 8c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4zm0 9c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4z"></path></svg>',
+            download: () => '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v6m0 0l-3-3m3 3l3-3M3 12a9 9 0 1118 0 9 9 0 01-18 0z"></path></svg>',
+            x: () => '<svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z"></path></svg>',
+            trash: () => '<svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z"></path></svg>',
+            externalLink: () => '<svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4m-4-6l6-6m0 0L21 3m0 0v6m0-6H9"></path></svg>',
+            camera: () => '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path></svg>',
+            plus: () => '<svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"></path></svg>',
+            loader: () => '<svg class="w-8 h-8 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>',
+        };
+
+        // ============================================
+        // STATE MANAGEMENT
+        // ============================================
+        const state = {
+            user: null,
+            view: 'search',
+            
+            // Search State
+            queryText: '',
+            loading: false,
+            selectedBook: null,
+            listings: [],
+            sortMethod: 'score',
+            resultsLayout: 'grid',
+            
+            // Advanced Search
+            showAdvanced: false,
+            advForm: {
+                title: '', author: '', publisher: '', minYear: '', maxYear: '', keywords: '',
+                isFirstEdition: false, isSigned: false, isDustJacket: false
+            },
+            
+            // Settings
+            ebayAppId: localStorage.getItem('bs_ebay_id') || '',
+            googleSearchKey: localStorage.getItem('bs_google_key') || '',
+            googleCxId: localStorage.getItem('bs_google_cx') || '',
+            geminiApiKey: localStorage.getItem('bs_gemini_key') || '',
+            useLiveApi: localStorage.getItem('bs_use_live') === 'true',
+            firebaseConfig: localStorage.getItem('bs_firebase_config') || '',
+            
+            // Batch Mode
+            batchInput: '',
+            batchResults: [],
+            validatingBatch: false,
+            showBatchAdvanced: false,
+            
+            // Alerts & Wishlist
+            activeAlerts: [],
+            savedListings: [],
+            alertForm: { keywords: '', maxPrice: '', minCondition: 'Any' },
+            
+            // UI State
+            showAddForm: false,
+            importText: '',
+            importImage: null,
+            analyzingImport: false,
+            showAnalytics: true,
+            curatorReport: null,
+            loadingReport: false,
+            newListing: {
+                price: '', condition: 'Good', details: '', sellerRating: '4.5',
+                author: '', year: '', publisher: '', location: '', binding: '', missingPages: 'None', link: ''
+            }
+        };
+
+        // ============================================
+        // FIREBASE SETUP
+        // ============================================
+        let db = null, auth = null;
+
+        async function initializeFirebase() {
+            try {
+                let config = state.firebaseConfig;
+                if (!config) {
+                    config = {
+                        apiKey: "AIzaSyDummyKeyForDevelopment",
+                        authDomain: "test-project.firebaseapp.com",
+                        projectId: "test-project",
+                        storageBucket: "test-project.appspot.com",
+                        messagingSenderId: "123456789",
+                        appId: "1:123456789:web:abcdef123456"
+                    };
+                } else {
+                    config = JSON.parse(config);
+                }
+
+                const { initializeApp } = await import('https://www.gstatic.com/firebasejs/10.7.0/firebase-app.js');
+                const { getAuth, signInAnonymously, onAuthStateChanged } = await import('https://www.gstatic.com/firebasejs/10.7.0/firebase-auth.js');
+                const { getFirestore } = await import('https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore.js');
+
+                const app = initializeApp(config);
+                auth = getAuth(app);
+                db = getFirestore(app);
+
+                signInAnonymously(auth).catch(() => console.log('Anonymous auth error'));
+                
+                onAuthStateChanged(auth, (user) => {
+                    state.user = user;
+                    render();
+                });
+            } catch (error) {
+                console.error('Firebase init error:', error);
+            }
+        }
+
+        // ============================================
+        // API FUNCTIONS
+        // ============================================
+
+        async function performSearch(overrideQuery = null) {
+            const q = overrideQuery || state.queryText;
+            if (!q) return;
+            
+            state.loading = true;
+            state.selectedBook = null;
+            state.listings = [];
+            render();
+
+            try {
+                const response = await fetch(`https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(q)}`);
+                const data = await response.json();
+                
+                if (data.items && data.items.length > 0) {
+                    const bestMatch = data.items[0].volumeInfo;
+                    state.selectedBook = {
+                        title: bestMatch.title,
+                        author: bestMatch.authors ? bestMatch.authors.join(', ') : 'Unknown',
+                        year: bestMatch.publishedDate ? bestMatch.publishedDate.substring(0, 4) : 'N/A',
+                        publisher: bestMatch.publisher || 'Unknown',
+                        description: bestMatch.description || 'No description.',
+                        image: bestMatch.imageLinks?.thumbnail || null,
+                        category: bestMatch.categories ? bestMatch.categories[0] : 'Rare Book',
+                        previewLink: bestMatch.previewLink || bestMatch.infoLink || null
+                    };
+                } else {
+                    state.selectedBook = { 
+                        title: q, author: 'Unknown', description: 'Search Result', 
+                        year: '', image: null, category: 'Search', previewLink: null 
+                    };
+                }
+
+                let allListings = [];
+                if (state.useLiveApi) {
+                    if (state.ebayAppId) allListings = [...allListings, ...await fetchRealEbayListings(q)];
+                    if (state.googleSearchKey && state.googleCxId) allListings = [...allListings, ...await fetchCustomSearchListings(q)];
+                }
+
+                if (allListings.length === 0 && state.selectedBook) {
+                    allListings = generateMockListings(state.selectedBook);
+                }
+
+                state.listings = sortListings(allListings, state.sortMethod);
+                state.view = 'results';
+            } catch (error) {
+                console.error('Search error:', error);
+            }
+
+            state.loading = false;
+            render();
+        }
+
+        async function fetchRealEbayListings(searchQuery) {
+            if (!state.ebayAppId) return [];
+            const url = `https://svcs.ebay.com/services/search/FindingService/v1?OPERATION-NAME=findItemsByKeywords&SERVICE-VERSION=1.0.0&SECURITY-APPNAME=${state.ebayAppId}&RESPONSE-DATA-FORMAT=JSON&REST-PAYLOAD&keywords=${encodeURIComponent(searchQuery)}&paginationInput.entriesPerPage=25&itemFilter(0).name=ListingType&itemFilter(0).value=FixedPrice`;
+            try {
+                const response = await fetch(url);
+                const data = await response.json();
+                const items = data?.findItemsByKeywordsResponse?.[0]?.searchResult?.[0]?.item || [];
+                return items.map((item, index) => {
+                    const price = parseFloat(item.sellingStatus?.[0]?.currentPrice?.[0]?.__value__ || 0);
+                    const link = item.viewItemURL?.[0] || "#";
+                    const title = item.title?.[0] || "Unknown Title";
+                    const conditionRaw = item.condition?.[0]?.conditionDisplayName?.[0] || "Good";
+                    let condition = "Good";
+                    if (conditionRaw.toLowerCase().includes("new")) condition = "Fine";
+                    else if (conditionRaw.toLowerCase().includes("very good")) condition = "Very Good";
+                    else if (conditionRaw.toLowerCase().includes("acceptable")) condition = "Fair";
+                    else if (conditionRaw.toLowerCase().includes("parts")) condition = "Poor";
+                    return {
+                        id: `ebay-${index}-${Date.now()}`, source: 'eBay', title: title, price: price, 
+                        condition: condition, details: ['Live Listing'], sellerRating: "4.5", link: link,
+                        author: '', year: '', publisher: '', location: '', binding: '', 
+                        missingPages: 'None', score: 0
+                    };
+                });
+            } catch (error) {
+                return [];
+            }
+        }
+
+        async function fetchCustomSearchListings(searchQuery) {
+            if (!state.googleSearchKey || !state.googleCxId) return [];
+            const url = `https://www.googleapis.com/customsearch/v1?key=${state.googleSearchKey}&cx=${state.googleCxId}&q=${encodeURIComponent(searchQuery)}`;
+            try {
+                const response = await fetch(url);
+                const data = await response.json();
+                if (!data.items) return [];
+                return data.items.map((item, index) => {
+                    const priceMatch = (item.snippet + item.title).match(/(\$|£|€)(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)/);
+                    const price = priceMatch ? parseFloat(priceMatch[2].replace(/,/g, '')) : 0;
+                    let source = "Web Market";
+                    if (item.link.includes("abebooks")) source = "AbeBooks";
+                    else if (item.link.includes("biblio")) source = "Biblio";
+                    else if (item.link.includes("alibris")) source = "Alibris";
+                    else if (item.link.includes("strandbooks")) source = "Strand";
+                    if (price === 0) return null;
+                    return {
+                        id: `gcs-${index}-${Date.now()}`, source: source, title: item.title, price: price, 
+                        condition: item.snippet.toLowerCase().includes("fine") ? "Fine" : "Good", 
+                        details: ['Web Detected'], sellerRating: "4.0", link: item.link,
+                        author: '', year: '', publisher: '', location: '', binding: '', 
+                        missingPages: 'None', score: 0
+                    };
+                }).filter(Boolean);
+            } catch (error) {
+                return [];
+            }
+        }
+
+        function generateMockListings(book) {
+            const conditions = ['Fine', 'Very Good', 'Good', 'Fair', 'Poor'];
+            const sources = ['AbeBooks', 'Biblio', 'Sothebys', 'Local Estate'];
+            const basePrice = Math.floor(Math.random() * 200) + 50;
+            return Array.from({ length: 12 }).map((_, i) => {
+                const source = sources[Math.floor(Math.random() * sources.length)];
+                return {
+                    id: `mock-${i}`, source: source,
+                    price: Math.floor(basePrice * (1 + (Math.random() * 0.5 - 0.2))), 
+                    condition: conditions[Math.floor(Math.random() * conditions.length)],
+                    details: ['Simulated Result'], sellerRating: "4.5", author: book.author || 'Unknown', 
+                    year: book.year || '', publisher: book.publisher || '',
+                    location: 'London', binding: 'Hardcover', missingPages: 'None', 
+                    link: generateSearchUrl(source, book.title, book.author),
+                    score: 0, title: book.title
+                };
+            });
+        }
+
+        function calculateScore(listing) {
+            let score = 50 - (listing.price / 100);
+            const conditionMap = { 'Fine': 40, 'Very Good': 30, 'Good': 15, 'Fair': 0, 'Poor': -20 };
+            score += conditionMap[listing.condition] || 0;
+            if (listing.details.some(d => d.includes('Signed'))) score += 50;
+            if (listing.missingPages !== 'None') score -= 50;
+            return Math.max(0, Math.round(score));
+        }
+
+        function sortListings(listings, method) {
+            const sorted = listings.map(item => ({ ...item, score: calculateScore(item) }));
+            if (method === 'price-asc') return sorted.sort((a, b) => a.price - b.price);
+            if (method === 'price-desc') return sorted.sort((a, b) => b.price - a.price);
+            return sorted.sort((a, b) => b.score - a.score);
+        }
+
+        function generateSearchUrl(source, title, author) {
+            const q = encodeURIComponent(`${title} ${author}`);
+            if (source.includes('eBay')) return `https://www.ebay.com/sch/i.html?_nkw=${q}&_category=29223`;
+            if (source.includes('AbeBooks')) return `https://www.abebooks.com/servlet/SearchResults?sts=t&tn=${encodeURIComponent(title||'')}&an=${encodeURIComponent(author||'')}`;
+            if (source.includes('Biblio')) return `https://www.biblio.com/search.php?stage=1&title=${encodeURIComponent(title||'')}&author=${encodeURIComponent(author||'')}`;
+            return `https://www.google.com/search?q=${q}`;
+        }
+
+        // ============================================
+        // RENDER FUNCTIONS
+        // ============================================
+
+        function render() {
+            const root = document.getElementById('root');
+            root.innerHTML = renderMain();
+            attachEventListeners();
+        }
+
+        function renderMain() {
+            return `
+            <main class="flex-1 overflow-y-auto pb-24 md:pb-6">
+                ${renderNav()}
+                
+                <div class="max-w-7xl mx-auto px-4 py-6">
+                    ${state.view === 'search' ? renderSearchView() : ''}
+                    ${state.view === 'results' ? renderResultsView() : ''}
+                    ${state.view === 'batch' ? renderBatchView() : ''}
+                    ${state.view === 'alerts' ? renderAlertsView() : ''}
+                    ${state.view === 'wishlist' ? renderWishlistView() : ''}
+                    ${state.view === 'settings' ? renderSettingsView() : ''}
+                </div>
+            </main>
+            ${renderMobileNav()}
+            `;
+        }
+
+        function renderNav() {
+            const tabs = [
+                { id: 'search', label: '🔍 Search' },
+                { id: 'batch', label: '📋 Batch' },
+                { id: 'alerts', label: '🔔 Alerts' },
+                { id: 'wishlist', label: '❤️ Wishlist' },
+                { id: 'settings', label: '⚙️ Settings' }
+            ];
+            
+            return `
+            <nav class="bg-white border-b border-slate-200 sticky top-0 z-20">
+                <div class="max-w-7xl mx-auto px-4 py-4">
+                    <div class="flex items-center justify-between mb-4">
+                        <h1 class="text-2xl font-bold text-amber-600">📚 Bibliophile Scout</h1>
+                        <div class="text-sm text-slate-500">
+                            ${state.user ? `✓ Connected` : 'Initializing...'}
+                        </div>
+                    </div>
+                    
+                    <div class="flex gap-1 flex-wrap">
+                        ${tabs.map(tab => `
+                            <button 
+                                onclick="setState('view', '${tab.id}')" 
+                                class="px-4 py-2 rounded-lg text-sm font-medium transition-colors ${state.view === tab.id ? 'bg-amber-100 text-amber-800 border border-amber-300' : 'text-slate-600 hover:bg-slate-100 border border-transparent'}"
+                            >
+                                ${tab.label}
+                            </button>
+                        `).join('')}
+                    </div>
+                </div>
+            </nav>
+            `;
+        }
+
+        function renderSearchView() {
+            return `
+            <div class="space-y-6">
+                <div class="bg-white rounded-lg border border-slate-200 p-6">
+                    <h2 class="text-xl font-bold mb-4">📖 Book Search</h2>
+                    <div class="flex gap-2">
+                        <input 
+                            type="text" 
+                            id="searchInput" 
+                            value="${state.queryText}" 
+                            class="flex-1 px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
+                            placeholder="Search by title, author, ISBN..."
+                        />
+                        <button onclick="handleSearch()" class="px-6 py-2 bg-amber-600 text-white rounded-lg font-medium hover:bg-amber-700">
+                            ${state.loading ? Icons.loader() : 'Search'}
+                        </button>
+                    </div>
+                    <button onclick="setState('showAdvanced', !state.showAdvanced)" class="mt-3 text-sm text-amber-600 hover:underline">
+                        ${state.showAdvanced ? '▼' : '▶'} Advanced Options
+                    </button>
+                    ${state.showAdvanced ? renderAdvancedSearch() : ''}
+                </div>
+            </div>
+            `;
+        }
+
+        function renderAdvancedSearch() {
+            return `
+            <div class="mt-4 p-4 bg-slate-50 rounded-lg space-y-3 border border-slate-200">
+                <div class="grid grid-cols-2 gap-3">
+                    <input type="text" placeholder="Title" class="px-3 py-2 border border-slate-300 rounded text-sm" 
+                        onchange="state.advForm.title = this.value">
+                    <input type="text" placeholder="Author" class="px-3 py-2 border border-slate-300 rounded text-sm"
+                        onchange="state.advForm.author = this.value">
+                    <input type="text" placeholder="Publisher" class="px-3 py-2 border border-slate-300 rounded text-sm"
+                        onchange="state.advForm.publisher = this.value">
+                    <input type="text" placeholder="Keywords" class="px-3 py-2 border border-slate-300 rounded text-sm"
+                        onchange="state.advForm.keywords = this.value">
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <input type="number" placeholder="From Year" class="px-3 py-2 border border-slate-300 rounded text-sm"
+                        onchange="state.advForm.minYear = this.value">
+                    <input type="number" placeholder="To Year" class="px-3 py-2 border border-slate-300 rounded text-sm"
+                        onchange="state.advForm.maxYear = this.value">
+                </div>
+                <div class="space-y-2">
+                    <label class="flex items-center gap-2"><input type="checkbox" onchange="state.advForm.isFirstEdition = this.checked"> First Edition</label>
+                    <label class="flex items-center gap-2"><input type="checkbox" onchange="state.advForm.isSigned = this.checked"> Signed Copy</label>
+                    <label class="flex items-center gap-2"><input type="checkbox" onchange="state.advForm.isDustJacket = this.checked"> Dust Jacket</label>
+                </div>
+                <button onclick="handleAdvancedSearch()" class="w-full bg-amber-600 text-white py-2 rounded font-medium hover:bg-amber-700">
+                    Search with Filters
+                </button>
+            </div>
+            `;
+        }
+
+        function renderResultsView() {
+            if (!state.selectedBook) return '';
+            
+            return `
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div class="lg:col-span-1">
+                    <div class="bg-white rounded-lg border border-slate-200 p-4 sticky top-20">
+                        <div class="space-y-3 text-sm">
+                            ${state.selectedBook.image ? `<img src="${state.selectedBook.image}" class="w-full rounded border">` : ''}
+                            <div>
+                                <h3 class="font-bold text-slate-800">${state.selectedBook.title}</h3>
+                                <p class="text-slate-600">by ${state.selectedBook.author}</p>
+                                <p class="text-xs text-slate-500 mt-1">${state.selectedBook.year} • ${state.selectedBook.publisher}</p>
+                            </div>
+                        </div>
+                        <div class="mt-4 space-y-2 border-t border-slate-100 pt-3">
+                            ${['eBay', 'AbeBooks', 'Biblio'].map(m => `
+                                <a href="${getMarketUrl(m)}" target="_blank" class="block px-3 py-2 bg-slate-50 text-xs font-medium text-slate-600 hover:bg-blue-50 hover:text-blue-600 rounded">
+                                    Search ${m} →
+                                </a>
+                            `).join('')}
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="lg:col-span-2 space-y-6">
+                    ${renderAnalyticsDashboard()}
+                    
+                    <div class="bg-white p-3 rounded-lg border border-slate-200 flex flex-wrap justify-between items-center gap-2">
+                        <div class="text-sm font-medium text-slate-600">Sort By:</div>
+                        <div class="flex gap-1">
+                            ${['score', 'price-asc', 'price-desc'].map(m => `
+                                <button onclick="handleSortChange('${m}')" 
+                                    class="px-3 py-1.5 text-xs rounded-md font-bold uppercase ${state.sortMethod === m ? 'bg-amber-100 text-amber-800' : 'text-slate-400'}">
+                                    ${m === 'score' ? 'Value' : m === 'price-asc' ? 'Low' : 'High'}
+                                </button>
+                            `).join('')}
+                        </div>
+                    </div>
+
+                    <div class="space-y-3">
+                        ${state.listings.map((item, i) => renderListingCard(item, i)).join('')}
+                    </div>
+                </div>
+            </div>
+            `;
+        }
+
+        function renderListingCard(item, index) {
+            return `
+            <div class="bg-white border border-slate-200 rounded-lg p-4 hover:shadow-md transition">
+                <div class="flex justify-between items-start">
+                    <div class="flex-1">
+                        <h4 class="font-bold text-slate-800">${item.title || item.source}</h4>
+                        <p class="text-sm text-slate-600">${item.source}</p>
+                    </div>
+                    <div class="text-right">
+                        <p class="text-lg font-bold text-amber-600">$${item.price}</p>
+                        <span class="text-xs px-2 py-0.5 rounded ${
+                            item.condition === 'Fine' ? 'bg-green-100 text-green-700' :
+                            item.condition === 'Poor' ? 'bg-red-100 text-red-700' :
+                            'bg-slate-100 text-slate-600'
+                        }">${item.condition}</span>
+                    </div>
+                </div>
+                <div class="mt-3 flex gap-2 text-xs text-slate-500">
+                    ${item.details.slice(0, 2).map(d => `<span class="bg-slate-100 px-2 py-0.5 rounded">${d}</span>`).join('')}
+                </div>
+                <div class="mt-3 flex gap-2">
+                    ${item.link && item.link !== '#' ? `<a href="${item.link}" target="_blank" class="text-xs text-blue-600 hover:underline">View Listing →</a>` : ''}
+                    <button onclick="handleToggleSave({...${JSON.stringify(item)}})" class="text-red-500 hover:text-red-700 text-xs">
+                        ${item.saved ? '❤️ Saved' : '🤍 Save'}
+                    </button>
+                </div>
+            </div>
+            `;
+        }
+
+        function renderAnalyticsDashboard() {
+            if (state.listings.length === 0) return '';
+            
+            const prices = state.listings.map(i => i.price).filter(p => p > 0).sort((a, b) => a - b);
+            if (prices.length === 0) return '';
+
+            const min = prices[0];
+            const max = prices[prices.length - 1];
+            const avg = Math.round(prices.reduce((a, b) => a + b, 0) / prices.length);
+            const median = prices[Math.floor(prices.length / 2)];
+
+            return `
+            <div class="bg-slate-900 text-white p-5 rounded-xl">
+                <h3 class="font-bold text-amber-500 mb-4">📊 Market Analytics</h3>
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    <div class="bg-slate-800 p-3 rounded">
+                        <div class="text-xs text-slate-400 uppercase">Lowest</div>
+                        <div class="text-lg font-bold">$${min}</div>
+                    </div>
+                    <div class="bg-slate-800 p-3 rounded">
+                        <div class="text-xs text-slate-400 uppercase">Average</div>
+                        <div class="text-lg font-bold text-amber-400">$${avg}</div>
+                    </div>
+                    <div class="bg-slate-800 p-3 rounded">
+                        <div class="text-xs text-slate-400 uppercase">Median</div>
+                        <div class="text-lg font-bold">$${median}</div>
+                    </div>
+                    <div class="bg-slate-800 p-3 rounded">
+                        <div class="text-xs text-slate-400 uppercase">Range</div>
+                        <div class="text-lg font-bold">${(max - min).toFixed(0)}</div>
+                    </div>
+                </div>
+            </div>
+            `;
+        }
+
+        function renderBatchView() {
+            return `
+            <div class="bg-white rounded-lg border border-slate-200 p-6">
+                <h2 class="text-xl font-bold mb-4">📋 Batch Processing</h2>
+                <textarea 
+                    id="batchInput"
+                    placeholder="Enter one book title per line..."
+                    class="w-full h-32 p-3 border border-slate-300 rounded-lg text-sm font-mono"
+                ></textarea>
+                <button onclick="processBatchInput()" class="mt-3 px-4 py-2 bg-amber-600 text-white rounded-lg font-medium hover:bg-amber-700">
+                    ${state.validatingBatch ? Icons.loader() : 'Process Batch'}
+                </button>
+                
+                ${state.batchResults.length > 0 ? `
+                <div class="mt-6 overflow-x-auto">
+                    <table class="w-full text-sm">
+                        <thead class="bg-slate-50 text-slate-600 uppercase text-xs font-bold border-b">
+                            <tr>
+                                <th class="p-3 text-left">Title</th>
+                                <th class="p-3 text-left">Status</th>
+                                <th class="p-3 text-left">Price Range</th>
+                                <th class="p-3 text-right">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y">
+                            ${state.batchResults.map((item, i) => `
+                                <tr class="hover:bg-slate-50">
+                                    <td class="p-3">
+                                        <strong>${item.original}</strong>
+                                        ${item.suggestion ? `<div class="text-xs text-amber-600 mt-1">Suggested: ${item.suggestion}</div>` : ''}
+                                    </td>
+                                    <td class="p-3 text-xs">
+                                        <span class="px-2 py-1 rounded ${
+                                            item.status === 'verified' ? 'bg-green-100 text-green-700' :
+                                            item.status === 'suggestion' ? 'bg-amber-100 text-amber-700' :
+                                            'bg-red-100 text-red-700'
+                                        }">${item.status}</span>
+                                    </td>
+                                    <td class="p-3 text-sm">
+                                        ${item.liveStats ? `$${item.liveStats.min} - $${item.liveStats.min * 2}` : '-'}
+                                    </td>
+                                    <td class="p-3 text-right">
+                                        <a href="${item.ebay}" target="_blank" class="text-blue-600 text-xs hover:underline">eBay</a>
+                                        <a href="${item.abebooks}" target="_blank" class="text-blue-600 text-xs hover:underline ml-2">AbeBooks</a>
+                                    </td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+                ` : ''}
+            </div>
+            `;
+        }
+
+        function renderAlertsView() {
+            return `
+            <div class="bg-white rounded-lg border border-slate-200 p-6">
+                <h2 class="text-xl font-bold mb-4">🔔 Price Alerts</h2>
+                <form onsubmit="handleAddAlert(event)" class="space-y-3 mb-6">
+                    <input type="text" id="alertKeywords" placeholder="Keywords to watch..." 
+                        class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm">
+                    <input type="number" id="alertPrice" placeholder="Max price" 
+                        class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm">
+                    <button type="submit" class="w-full px-4 py-2 bg-amber-600 text-white rounded-lg font-medium hover:bg-amber-700">
+                        Create Alert
+                    </button>
+                </form>
+                
+                <div class="space-y-2">
+                    ${state.activeAlerts.map(alert => `
+                        <div class="flex items-center justify-between bg-slate-50 p-3 rounded">
+                            <div>
+                                <p class="font-medium text-slate-800">${alert.keywords}</p>
+                                <p class="text-xs text-slate-600">Max: $${alert.maxPrice || 'Any'}</p>
+                            </div>
+                            <button onclick="handleDeleteAlert('${alert.id}')" class="text-red-500 hover:text-red-700">Delete</button>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+            `;
+        }
+
+        function renderWishlistView() {
+            return `
+            <div class="bg-white rounded-lg border border-slate-200 p-6">
+                <h2 class="text-xl font-bold mb-4">❤️ Saved Listings</h2>
+                <div class="space-y-3">
+                    ${state.savedListings.length === 0 ? 
+                        '<p class="text-slate-600 text-sm">No saved listings yet.</p>' :
+                        state.savedListings.map(item => renderListingCard(item)).join('')
+                    }
+                </div>
+            </div>
+            `;
+        }
+
+        function renderSettingsView() {
+            return `
+            <div class="bg-white rounded-lg border border-slate-200 p-6 max-w-2xl">
+                <h2 class="text-xl font-bold mb-4">⚙️ Configuration</h2>
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">Firebase Config (JSON)</label>
+                        <textarea id="firebaseConfig" class="w-full p-3 border border-slate-300 rounded text-sm h-24 font-mono"
+                            onchange="saveSettings('firebaseConfig', this.value)"></textarea>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">eBay App ID</label>
+                        <input type="text" id="ebayAppId" class="w-full px-3 py-2 border border-slate-300 rounded text-sm"
+                            onchange="saveSettings('ebayAppId', this.value)">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">Google Search API Key</label>
+                        <input type="text" id="googleSearchKey" class="w-full px-3 py-2 border border-slate-300 rounded text-sm"
+                            onchange="saveSettings('googleSearchKey', this.value)">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">Google CX ID</label>
+                        <input type="text" id="googleCxId" class="w-full px-3 py-2 border border-slate-300 rounded text-sm"
+                            onchange="saveSettings('googleCxId', this.value)">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">Gemini API Key</label>
+                        <input type="password" id="geminiApiKey" class="w-full px-3 py-2 border border-slate-300 rounded text-sm"
+                            onchange="saveSettings('geminiApiKey', this.value)">
+                    </div>
+                    <label class="flex items-center gap-2">
+                        <input type="checkbox" id="useLiveApi" onchange="saveSettings('useLiveApi', this.checked)">
+                        <span class="text-sm text-slate-700">Use Live APIs (when available)</span>
+                    </label>
+                </div>
+            </div>
+            `;
+        }
+
+        function renderMobileNav() {
+            const tabs = [
+                { id: 'search', label: 'Search' },
+                { id: 'batch', label: 'Batch' },
+                { id: 'alerts', label: 'Alerts' },
+                { id: 'wishlist', label: 'Wishlist' },
+                { id: 'settings', label: 'Settings' }
+            ];
+            
+            return `
+            <nav class="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 flex justify-around p-2 z-30 shadow-lg pb-safe">
+                ${tabs.map(tab => `
+                    <button onclick="setState('view', '${tab.id}')" class="flex flex-col items-center gap-1 px-3 py-2 text-xs font-medium transition-colors ${state.view === tab.id ? 'text-amber-600 bg-amber-50 rounded' : 'text-slate-600 hover:text-amber-600'}">
+                        <span class="w-6 h-6 flex items-center justify-center">
+                            ${tab.id === 'search' ? '🔍' : 
+                              tab.id === 'batch' ? '📋' : 
+                              tab.id === 'alerts' ? '🔔' : 
+                              tab.id === 'wishlist' ? '❤️' : '⚙️'}
+                        </span>
+                        <span>${tab.label}</span>
+                    </button>
+                `).join('')}
+            </nav>
+            `;
+        }
+
+        // ============================================
+        // EVENT HANDLERS
+        // ============================================
+
+        function handleSearch() {
+            const input = document.getElementById('searchInput');
+            if (input) {
+                state.queryText = input.value;
+                performSearch();
+            }
+        }
+
+        function handleAdvancedSearch() {
+            let query = state.advForm.title || '';
+            if (state.advForm.author) query += ` +author:"${state.advForm.author}"`;
+            if (state.advForm.minYear) query += ` after:${state.advForm.minYear}`;
+            if (state.advForm.isFirstEdition) query += ' "First Edition"';
+            if (query.trim()) {
+                state.queryText = query;
+                performSearch(query);
+            }
+        }
+
+        function handleSortChange(method) {
+            state.sortMethod = method;
+            state.listings = sortListings([...state.listings], method);
+            render();
+        }
+
+        function handleToggleSave(listing) {
+            const idx = state.savedListings.findIndex(l => 
+                (l.link !== '#' && l.link === listing.link) || 
+                (l.price === listing.price && l.source === listing.source)
+            );
+            if (idx >= 0) {
+                state.savedListings.splice(idx, 1);
+            } else {
+                state.savedListings.push({...listing, savedAt: Date.now()});
+            }
+            render();
+        }
+
+        async function processBatchInput() {
+            const textarea = document.getElementById('batchInput');
+            if (!textarea || !textarea.value.trim()) return;
+            
+            state.validatingBatch = true;
+            state.batchResults = [];
+            render();
+            
+            const lines = textarea.value.split('\n').filter(line => line.trim());
+            const results = [];
+            
+            for (const line of lines) {
+                const q = line.trim();
+                let status = 'unknown';
+                let suggestion = null;
+                
+                try {
+                    const res = await fetch(`https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(q)}`);
+                    const data = await res.json();
+                    if (data.items && data.items.length > 0) {
+                        const info = data.items[0].volumeInfo;
+                        const full = `${info.title} ${info.authors ? info.authors.join(', ') : ''}`.trim();
+                        status = full.toLowerCase() === q.toLowerCase() ? 'verified' : 'suggestion';
+                        if (status === 'suggestion') suggestion = full;
+                    } else {
+                        status = 'not_found';
+                    }
+                } catch (e) {}
+                
+                results.push({
+                    original: q,
+                    suggestion,
+                    status,
+                    ebay: `https://www.ebay.com/sch/i.html?_nkw=${encodeURIComponent(q)}&_category=29223`,
+                    abebooks: `https://www.abebooks.com/servlet/SearchResults?sts=t&tn=${encodeURIComponent(q)}`
+                });
+            }
+            
+            state.batchResults = results;
+            state.validatingBatch = false;
+            render();
+        }
+
+        function handleAddAlert(event) {
+            event.preventDefault();
+            const keywords = document.getElementById('alertKeywords');
+            const price = document.getElementById('alertPrice');
+            if (keywords && keywords.value.trim()) {
+                state.activeAlerts.push({
+                    id: Date.now(),
+                    keywords: keywords.value,
+                    maxPrice: price ? price.value : '',
+                    createdAt: Date.now()
+                });
+                keywords.value = '';
+                if (price) price.value = '';
+                render();
+            }
+        }
+
+        function handleDeleteAlert(id) {
+            state.activeAlerts = state.activeAlerts.filter(a => a.id != id);
+            render();
+        }
+
+        function getMarketUrl(market) {
+            const q = encodeURIComponent(state.selectedBook ? 
+                `${state.selectedBook.title} ${state.selectedBook.author}` : 
+                state.queryText);
+            if (market === 'eBay') return `https://www.ebay.com/sch/i.html?_nkw=${q}&_category=29223`;
+            if (market === 'AbeBooks') return `https://www.abebooks.com/servlet/SearchResults?sts=t&tn=${q}`;
+            if (market === 'Biblio') return `https://www.biblio.com/search.php?stage=1&term=${q}`;
+            return '#';
+        }
+
+        function saveSettings(key, value) {
+            state[key] = value;
+            localStorage.setItem(`bs_${key}`, value);
+        }
+
+        function setState(key, value) {
+            state[key] = value;
+            render();
+        }
+
+        function attachEventListeners() {
+            // Populate settings form
+            if (document.getElementById('ebayAppId')) {
+                document.getElementById('ebayAppId').value = state.ebayAppId;
+                document.getElementById('googleSearchKey').value = state.googleSearchKey;
+                document.getElementById('googleCxId').value = state.googleCxId;
+                document.getElementById('geminiApiKey').value = state.geminiApiKey;
+                document.getElementById('useLiveApi').checked = state.useLiveApi;
+                document.getElementById('firebaseConfig').value = state.firebaseConfig;
+            }
+            
+            // Populate batch input
+            if (document.getElementById('batchInput')) {
+                document.getElementById('batchInput').value = state.batchInput;
+                document.getElementById('batchInput').addEventListener('change', (e) => {
+                    state.batchInput = e.target.value;
+                });
+            }
+        }
+
+        // ============================================
+        // INITIALIZATION
+        // ============================================
+
+        initializeFirebase();
+        render();
+    </script>
+</body>
+</html>
