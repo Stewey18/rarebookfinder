@@ -1,2 +1,0 @@
-# rarebookfinder
-Rare Books
